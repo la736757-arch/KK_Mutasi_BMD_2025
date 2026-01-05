@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Upload Dokumen Pendukung Persediaan Tahun 2025</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @media (max-width: 640px) {
+      table { display: none; }
+      .card-list { display: block; }
+    }
+    @media (min-width: 641px) {
+      .card-list { display: none; }
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center p-4 sm:p-6">
+  <h1 class="text-2xl sm:text-3xl font-bold mb-6 text-center">
+    Upload Dokumen Pendukung Persediaan Tahun 2025
+  </h1>
+
+  <div class="bg-white shadow-md rounded-lg p-4 sm:p-6 w-full overflow-x-auto">
+    <!-- Info jumlah dokumen -->
+    <p id="infoJumlah" class="mb-4 text-sm font-medium text-gray-700"></p>
+
+    <!-- Pencarian -->
+    <input type="text" id="searchBox" placeholder="Cari Nama OPD..." 
+      class="border rounded p-2 text-sm sm:text-base w-full sm:w-64 mb-4" oninput="applyFilters()"/>
+
+    <!-- Tabel Desktop -->
+    <table class="table-auto w-full border-collapse border border-gray-300 text-sm sm:text-base">
+      <thead class="bg-gray-200">
+        <tr>
+          <th class="border p-2">Nama OPD</th>
+          <th class="border p-2">Saldo Awal 2025</th>
+          <th class="border p-2">Dokumen</th>
+          <th class="border p-2">Aksi</th>
+        </tr>
+      </thead>
+      <tbody id="tabelData"></tbody>
+    </table>
+
+    <!-- Card List Mobile -->
+    <div id="cardList" class="card-list space-y-4"></div>
+
+    <!-- Pagination -->
+    <div class="flex justify-center items-center gap-2 mt-4">
+      <button id="prevBtn" onclick="prevPage()" class="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300 text-sm">Prev</button>
+      <span id="pageInfo" class="text-sm"></span>
+      <button id="nextBtn" onclick="nextPage()" class="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300 text-sm">Next</button>
+    </div>
+  </div>
+
+<script>
+const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbw5Qon3zR9ruhrr4E1oV6G7aZ0wKTJ8a9hxn1cO8tvCFQ31gtyWPv9km8FuHYA7uKF6/exec";
+
+let allData = [];
+let filteredData = [];
+let currentPage = 1;
+const rowsPerPage = 15;
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = error => reject(error);
+    reader.readAsDataURL(file);
+  });
+}
+
+async function loadData() {
+  try {
+    const res = await fetch(`${WEB_APP_URL}?action=getAploudData`);
+    allData = await res.json();
+    filteredData = allData;
+    renderTable();
+  } catch (err) {
+    console.error("Gagal load data:", err);
+  }
+}
+
+function applyFilters() {
+  const keyword = document.getElementById('searchBox').value.toLowerCase();
+  filteredData = allData.filter(d => d.namaOPD.toLowerCase().includes(keyword));
+  currentPage = 1;
+  renderTable();
+}
+
+function renderTable() {
+  const tabel = document.getElementById('tabelData');
+  const cardList = document.getElementById('cardList');
+  tabel.innerHTML = "";
+  cardList.innerHTML = "";
+
+  const start = (currentPage - 1) * rowsPerPage;
+  const end = start + rowsPerPage;
+  const pageData = filteredData.slice(start, end);
+
+  pageData.forEach(item => {
+    const sudahUpload = item.dokumen && item.dokumen.startsWith("http");
+
+    // Baris tabel
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="border p-2">${item.namaOPD}</td>
+      <td class="border p-2">${item.saldoAwal2025}</td>
+      <td class="border p-2 text-center">
+        ${sudahUpload ? `<a href="${item.dokumen}" target="_blank" class="text-blue-600 underline">Lihat</a>` : "-"}
+      </td>
+      <td class="border p-2 text-center">
+        <input type="file" id="file-${item.namaOPD}" class="mb-2 text-xs" ${sudahUpload ? "disabled" : ""}/>
+        <button onclick="uploadFileOPD('${item.namaOPD}')" 
+          class="px-2 py-1 rounded text-xs ${sudahUpload ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-green-600 text-white hover:bg-green-700'}"
+          ${sudahUpload ? "disabled" : ""}>
+          Upload
+        </button>
+        <p id="status-${item.namaOPD}" class="text-xs mt-1 text-gray-600">${sudahUpload ? "Sudah upload" : ""}</p>
+      </td>
+    `;
+    tabel.appendChild(tr);
+
+    // Card mobile
+    const card = document.createElement('div');
+    card.className = "border rounded-lg p-3 shadow-sm";
+    card.innerHTML = `
+      <p class="font-semibold">${item.namaOPD}</p>
+      <p class="mt-1">Saldo Awal 2025: ${item.saldoAwal2025}</p>
+      <p class="mt-1">Dokumen: ${sudahUpload ? `<a href="${item.dokumen}" target="_blank" class="text-blue-600 underline">Lihat</a>` : "-"}</p>
+      <div class="mt-2">
+        <input type="file" id="file-${item.namaOPD}" class="mb-2 text-xs block w-full" ${sudahUpload ? "disabled" : ""}/>
+        <button onclick="uploadFileOPD('${item.namaOPD}')"
+          class="px-3 py-1 rounded text-xs w-full ${sudahUpload ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-green-600 text-white hover:bg-green-700'}"
+          ${sudahUpload ? "disabled" : ""}>
+          Upload
+        </button>
+        <p id="status-${item.namaOPD}" class="text-xs mt-1 text-gray-600">${sudahUpload ? "Sudah upload" : ""}</p>
+      </div>
+    `;
+    cardList.appendChild(card);
+  });
+
+  const totalPages = Math.ceil(filteredData.length / rowsPerPage) || 1;
+  document.getElementById('pageInfo').textContent = `Halaman ${currentPage} dari ${totalPages}`;
+  document.getElementById('prevBtn').disabled = currentPage === 1;
+  document.getElementById('nextBtn').disabled = currentPage === totalPages;
+
+  const totalUpload = allData.filter(d => d.dokumen && d.dokumen.startsWith("http")).length;
+  document.getElementById('infoJumlah').textContent = 
+    `Jumlah dokumen terisi: ${totalUpload} dari ${allData.length} OPD`;
+}
+
+function prevPage() {
+  if (currentPage > 1) {
+    currentPage--;
+    renderTable();
+  }
+}
+
+function nextPage() {
+  const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+  if (currentPage < totalPages) {
+    currentPage++;
+    renderTable();
+  }
+}
+
+async function uploadFileOPD(namaOPD) {
+  const fileInput = document.getElementById(`file-${namaOPD}`);
+  const status = document.getElementById(`status-${namaOPD}`);
+  if (!fileInput || !fileInput.files.length) {
+    alert("Pilih file terlebih dahulu!");
+    return;
+  }
+
+  status.textContent = "Mengunggah...";
+  try {
+    const file = fileInput.files[0];
+    const base64 = await fileToBase64(file);
+    const payload = {
+      action: "uploadFile",
+      namaOPD: namaOPD,  // ✅ sudah sama dengan server
+      base64: base64.split(',')[1],
+      mimeType: file.type
+    };
+
+    const res = await fetch(WEB_APP_URL, {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+    const result = await res.json();
+
+    if (result.success) {
+      status.innerHTML = `Upload berhasil! <a href="${result.fileUrl}" target="_blank" class="text-blue-600 underline">Lihat file</a>`;
+      fileInput.disabled = true;
+      const btn = fileInput.nextElementSibling;
+      btn.disabled = true;
+      btn.className = "px-2 py-1 rounded text-xs bg-gray-400 cursor-not-allowed text-white";
+      const opdData = allData.find(d => d.namaOPD === namaOPD);
+      if (opdData) opdData.dokumen = result.fileUrl;
+      applyFilters();
+    } else {
+      status.textContent = "Gagal upload: " + result.message;
+    }
+  } catch (err) {
+    console.error(err);
+    status.textContent = "Terjadi kesalahan saat upload.";
+  }
+}
+
+loadData();
+</script>
+</body>
+</html>
