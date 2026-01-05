@@ -53,12 +53,24 @@
   </div>
 
 <script>
-const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbw5Qon3zR9ruhrr4E1oV6G7aZ0wKTJ8a9hxn1cO8tvCFQ31gtyWPv9km8FuHYA7uKF6/exec";
+const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzm4WtVAdeF0S0Q0TmOLjDxflnmMVDeX21ALQBx8amD9ALGcQauR6RfHqcV4VFXpqKW/exec";
 
 let allData = [];
 let filteredData = [];
 let currentPage = 1;
 const rowsPerPage = 15;
+
+// ✅ Fungsi format Rupiah
+function formatRupiah(angka) {
+  if (angka === null || angka === undefined || angka === "") return "-";
+  const num = parseFloat(String(angka).replace(/[^0-9,.-]/g, "").replace(",", "."));
+  if (isNaN(num)) return angka;
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 2
+  }).format(num);
+}
 
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
@@ -100,11 +112,14 @@ function renderTable() {
   pageData.forEach(item => {
     const sudahUpload = item.dokumen && item.dokumen.startsWith("http");
 
+    // ✅ Format saldo ke Rupiah
+    const saldoFormatted = formatRupiah(item.saldoAwal2025);
+
     // Baris tabel
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td class="border p-2">${item.namaOPD}</td>
-      <td class="border p-2">${item.saldoAwal2025}</td>
+      <td class="border p-2 text-right">${saldoFormatted}</td>
       <td class="border p-2 text-center">
         ${sudahUpload ? `<a href="${item.dokumen}" target="_blank" class="text-blue-600 underline">Lihat</a>` : "-"}
       </td>
@@ -125,7 +140,7 @@ function renderTable() {
     card.className = "border rounded-lg p-3 shadow-sm";
     card.innerHTML = `
       <p class="font-semibold">${item.namaOPD}</p>
-      <p class="mt-1">Saldo Awal 2025: ${item.saldoAwal2025}</p>
+      <p class="mt-1">Saldo Awal 2025: <span class="font-medium">${saldoFormatted}</span></p>
       <p class="mt-1">Dokumen: ${sudahUpload ? `<a href="${item.dokumen}" target="_blank" class="text-blue-600 underline">Lihat</a>` : "-"}</p>
       <div class="mt-2">
         <input type="file" id="file-${item.namaOPD}" class="mb-2 text-xs block w-full" ${sudahUpload ? "disabled" : ""}/>
@@ -179,7 +194,7 @@ async function uploadFileOPD(namaOPD) {
     const base64 = await fileToBase64(file);
     const payload = {
       action: "uploadFile",
-      namaOPD: namaOPD,  // ✅ sudah sama dengan server
+      namaOPD: namaOPD,
       base64: base64.split(',')[1],
       mimeType: file.type
     };
