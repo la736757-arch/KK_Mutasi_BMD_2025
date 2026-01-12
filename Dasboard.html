@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Upload Dokumen Pendukung Persediaan Tahun 2025</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @media (max-width: 640px) {
+      table { display: none; }
+      .card-list { display: block; }
+    }
+    @media (min-width: 641px) {
+      .card-list { display: none; }
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center p-0 sm:p-6">
+
+  <!-- ===== HEADER ===== -->
+  <header class="bg-blue-700 text-white w-full py-4 sm:py-6 shadow-lg flex flex-col sm:flex-row items-center justify-between px-4 sm:px-8">
+    <div class="flex items-center gap-3">
+      <img src="https://upload.wikimedia.org/wikipedia/commons/e/e5/Lambang_Kabupaten_Donggala_%282015-sekarang%29.png" alt="Logo Instansi" class="h-12 sm:h-14">
+      <div>
+        <h1 class="text-lg sm:text-2xl font-bold leading-tight">Pemerintah Kabupaten Donggala</h1>
+        <p class="text-sm sm:text-base opacity-90">Badan Pengelolaan Keuangan & Aset Daerah</p>
+      </div>
+    </div>
+    <div class="mt-3 sm:mt-0">
+      <p class="text-xs sm:text-sm italic">Sistem Upload Dokumen Persediaan 2025</p>
+    </div>
+  </header>
+
+  <!-- ===== MAIN CONTENT ===== -->
+  <main class="flex-grow w-full max-w-6xl mt-4 sm:mt-8 bg-white shadow-md rounded-lg p-4 sm:p-6">
+    <p id="infoJumlah" class="mb-1 text-sm font-medium text-gray-700"></p>
+    <p id="totalSaldo" class="mb-4 text-sm font-semibold text-gray-900"></p>
+
+    <input type="text" id="searchBox" placeholder="Cari Nama OPD..." 
+      class="border rounded p-2 text-sm sm:text-base w-full sm:w-64 mb-4" oninput="applyFilters()"/>
+
+    <table class="table-auto w-full border-collapse border border-gray-300 text-sm sm:text-base">
+      <thead class="bg-gray-200">
+        <tr>
+          <th class="border p-2">Nama OPD</th>
+          <th class="border p-2">Saldo Awal 2025</th>
+          <th class="border p-2">Dokumen</th>
+          <th class="border p-2">Aksi</th>
+        </tr>
+      </thead>
+      <tbody id="tabelData"></tbody>
+    </table>
+
+    <div id="cardList" class="card-list space-y-4"></div>
+
+    <div class="flex justify-center items-center gap-2 mt-4">
+      <button id="prevBtn" onclick="prevPage()" class="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300 text-sm">Prev</button>
+      <span id="pageInfo" class="text-sm"></span>
+      <button id="nextBtn" onclick="nextPage()" class="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300 text-sm">Next</button>
+    </div>
+  </main>
+
+  <!-- ===== FOOTER ===== -->
+  <footer class="bg-blue-800 text-white w-full text-center py-3 mt-6 text-xs sm:text-sm">
+    <p>&copy; <span id="year"></span> BIDANG ASET DAERAH (BPKAD) KABUPATEN DONGGALA</p>
+  </footer>
+
+<script>
+const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxQk5OomBAzC8nwyvqbQxho6qEhz7UgjxioCcNrobWOV4djVdZEKCeWxPAF5WC_zr3C/exec";
+
+let allData = [];
+let filteredData = [];
+let currentPage = 1;
+const rowsPerPage = 15;
+document.getElementById("year").textContent = new Date().getFullYear();
+
+// ✅ Format angka jadi Rupiah
+function formatRupiah(angka) {
+  if (angka === null || angka === undefined || angka === "") return "-";
+  const num = parseFloat(String(angka).replace(/[^0-9,.-]/g, "").replace(",", "."));
+  if (isNaN(num)) return angka;
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 2
+  }).format(num);
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = error => reject(error);
+    reader.readAsDataURL(file);
+  });
+}
+
+// ✅ Load data dari Google Apps Script
+async function loadData() {
+  try {
+    const res = await fetch(`${WEB_APP_URL}?action=getAploudData&_=${Date.now()}`); // cache-buster
+    allData = await res.json();
+    filteredData = allData;
+    renderTable();
+  } catch (err) {
+    console.error("Gagal load data:", err);
+  }
+}
+
+// ✅ Auto-refresh data setiap 30 detik
+setInterval(loadData, 30000);
+
+function applyFilters() {
+  const keyword = document.getElementById('searchBox').value.toLowerCase();
+  filteredData = allData.filter(d => d.namaOPD.toLowerCase().includes(keyword));
+  currentPage = 1;
+  renderTable();
+}
+
+function renderTable() {
+  const tabel = document.getElementById('tabelData');
+  const cardList = document.getElementById('cardList');
+  tabel.innerHTML = "";
+  cardList.innerHTML = "";
+
+  const start = (currentPage - 1) * rowsPerPage;
+  const end = start + rowsPerPage;
+  const pageData = filteredData.slice(start, end);
+
+  pageData.forEach(item => {
+    const sudahUpload = item.dokumen && item.dokumen.startsWith("http");
+    const saldoFormatted = formatRupiah(item.saldoAwal2025);
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="border p-2">${item.namaOPD}</td>
+      <td class="border p-2 text-right">${saldoFormatted}</td>
+      <td class="border p-2 text-center">
+        ${sudahUpload ? `<a href="${item.dokumen}" target="_blank" class="text-blue-600 underline">Lihat</a>` : "-"}
+      </td>
+      <td class="border p-2 text-center">
+        <input type="file" id="file-${item.namaOPD}" class="mb-2 text-xs" ${sudahUpload ? "disabled" : ""}/>
+        <button onclick="uploadFileOPD('${item.namaOPD}')" 
+          class="px-2 py-1 rounded text-xs ${sudahUpload ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-green-600 text-white hover:bg-green-700'}"
+          ${sudahUpload ? "disabled" : ""}>
+          Upload
+        </button>
+        <p id="status-${item.namaOPD}" class="text-xs mt-1 text-gray-600">${sudahUpload ? "Sudah upload" : ""}</p>
+      </td>
+    `;
+    tabel.appendChild(tr);
+
+    const card = document.createElement('div');
+    card.className = "border rounded-lg p-3 shadow-sm";
+    card.innerHTML = `
+      <p class="font-semibold">${item.namaOPD}</p>
+      <p class="mt-1">Saldo Awal 2025: <span class="font-medium">${saldoFormatted}</span></p>
+      <p class="mt-1">Dokumen: ${sudahUpload ? `<a href="${item.dokumen}" target="_blank" class="text-blue-600 underline">Lihat</a>` : "-"}</p>
+      <div class="mt-2">
+        <input type="file" id="file-${item.namaOPD}" class="mb-2 text-xs block w-full" ${sudahUpload ? "disabled" : ""}/>
+        <button onclick="uploadFileOPD('${item.namaOPD}')"
+          class="px-3 py-1 rounded text-xs w-full ${sudahUpload ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-green-600 text-white hover:bg-green-700'}"
+          ${sudahUpload ? "disabled" : ""}>
+          Upload
+        </button>
+        <p id="status-${item.namaOPD}" class="text-xs mt-1 text-gray-600">${sudahUpload ? "Sudah upload" : ""}</p>
+      </div>
+    `;
+    cardList.appendChild(card);
+  });
+
+  const totalPages = Math.ceil(filteredData.length / rowsPerPage) || 1;
+  document.getElementById('pageInfo').textContent = `Halaman ${currentPage} dari ${totalPages}`;
+  document.getElementById('prevBtn').disabled = currentPage === 1;
+  document.getElementById('nextBtn').disabled = currentPage === totalPages;
+
+  const totalUpload = allData.filter(d => d.dokumen && d.dokumen.startsWith("http")).length;
+  document.getElementById('infoJumlah').textContent = 
+    `Jumlah dokumen terisi: ${totalUpload} dari ${allData.length} OPD`;
+
+  const totalSaldo = allData.reduce((sum, d) => {
+    const val = parseFloat(String(d.saldoAwal2025).replace(/[^0-9,.-]/g, "").replace(",", "."));
+    return sum + (isNaN(val) ? 0 : val);
+  }, 0);
+
+  document.getElementById('totalSaldo').textContent = 
+    `Jumlah Total Saldo Awal 2025: ${formatRupiah(totalSaldo)}`;
+}
+
+function prevPage() {
+  if (currentPage > 1) { currentPage--; renderTable(); }
+}
+function nextPage() {
+  const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+  if (currentPage < totalPages) { currentPage++; renderTable(); }
+}
+
+// ✅ Upload File dan langsung refresh data setelah sukses
+async function uploadFileOPD(namaOPD) {
+  const fileInput = document.getElementById(`file-${namaOPD}`);
+  const status = document.getElementById(`status-${namaOPD}`);
+  if (!fileInput || !fileInput.files.length) {
+    alert("Pilih file terlebih dahulu!");
+    return;
+  }
+  status.textContent = "Mengunggah...";
+
+  try {
+    const file = fileInput.files[0];
+    const base64 = await fileToBase64(file);
+    const payload = {
+      action: "uploadFile",
+      namaOPD: namaOPD,
+      base64: base64.split(',')[1],
+      mimeType: file.type
+    };
+
+    const res = await fetch(WEB_APP_URL, {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+    const result = await res.json();
+
+    if (result.success) {
+      status.innerHTML = `Upload berhasil! <a href="${result.fileUrl}" target="_blank" class="text-blue-600 underline">Lihat file</a>`;
+      // ✅ Refresh data langsung setelah upload berhasil
+      await loadData();
+    } else {
+      status.textContent = "Gagal upload: " + result.message;
+    }
+  } catch (err) {
+    console.error(err);
+    status.textContent = "Terjadi kesalahan saat upload.";
+  }
+}
+
+loadData();
+</script>
+</body>
+</html>
